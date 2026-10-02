@@ -53,10 +53,17 @@ Deno.serve(async (req) => {
   const status = Number(params.get("status"));
   const transId = params.get("trans_id")?.trim();
   const userId = params.get("user_id")?.trim();
-  const amount = Number(params.get("amount_local"));
+  const amountLocal = Number(params.get("amount_local"));
   const receivedHash = params.get("secure_hash")?.trim();
 
-  if (!Number.isInteger(status) || !transId || !userId || !Number.isFinite(amount) || amount <= 0 || !receivedHash) {
+  if (
+    !Number.isInteger(status) ||
+    !transId ||
+    !userId ||
+    !Number.isFinite(amountLocal) ||
+    amountLocal <= 0 ||
+    !receivedHash
+  ) {
     return response({ error: "INVALID_POSTBACK" }, 400);
   }
 
@@ -70,18 +77,13 @@ Deno.serve(async (req) => {
 
   if (status !== 1 && status !== 2) return response({ error: "UNSUPPORTED_STATUS" }, 400);
 
-  const amountPoints = Math.round(amount);
-  if (Math.abs(amount - amountPoints) > 0.000001) {
-    return response({ error: "NON_INTEGER_POINTS" }, 400);
-  }
-
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
   const { data, error } = await admin.rpc("process_cpx_reward", {
     p_event_id: transId,
     p_user_id: userId,
     p_status: status,
-    p_amount_points: amountPoints,
+    p_amount_local: amountLocal,
     p_payload: Object.fromEntries(params.entries())
   });
 
@@ -94,5 +96,10 @@ Deno.serve(async (req) => {
   }
 
   const result = Array.isArray(data) ? data[0] : data;
-  return response({ ok: true, result: result?.result ?? "PROCESSED", balance: result?.new_balance ?? null });
+  return response({
+    ok: true,
+    result: result?.result ?? "PROCESSED",
+    balance: result?.new_balance ?? null,
+    credited_points: result?.credited_points ?? 0
+  });
 });
