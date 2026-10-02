@@ -48,6 +48,7 @@ export default function App() {
   const [loadingSurveys, setLoadingSurveys] = useState(false);
   const [startingActivity, setStartingActivity] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -300,13 +301,22 @@ export default function App() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({
+        const redirectTo = window.location.origin;
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: displayName.trim() || null } }
+          options: {
+            emailRedirectTo: redirectTo,
+            data: { display_name: displayName.trim() || null }
+          }
         });
         if (error) throw error;
-        setMessage("Cadastro criado. Verifique seu e-mail se a confirmação estiver ativada.");
+        setEmailConfirmationSent(!data.session);
+        setMessage(
+          data.session
+            ? "Cadastro concluído. Sua conta já está pronta."
+            : "Cadastro criado. Enviamos um e-mail para confirmar sua conta."
+        );
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível concluir a operação.");
@@ -567,13 +577,33 @@ export default function App() {
     <main className="app-shell">
       <section className="auth-card">
         <span className="eyebrow">PITBULL PRÊMIO</span>
-        <h1>{mode === "login" ? "Entrar" : "Criar conta"}</h1>
+        <h1>{emailConfirmationSent ? "Confirme seu e-mail" : mode === "login" ? "Entrar" : "Criar conta"}</h1>
         <p className="muted">
-          {mode === "login"
-            ? "Entre para acessar sua carteira e suas atividades."
-            : "Crie sua conta para começar a usar o aplicativo."}
+          {emailConfirmationSent
+            ? "Enviamos um link de confirmação para o seu e-mail. Confirme para ativar sua conta e continuar no Pitbull Prêmio."
+            : mode === "login"
+              ? "Entre para acessar sua carteira e suas atividades."
+              : "Crie sua conta para começar a usar o aplicativo."}
         </p>
 
+        {emailConfirmationSent ? (
+          <div className="empty-state">
+            <span>✉️</span>
+            <strong>Quase tudo pronto!</strong>
+            <p>Abra seu e-mail e procure a mensagem do Pitbull Prêmio. Clique em <strong>Confirmar meu e-mail</strong>. Depois, volte para o site e entre normalmente.</p>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setEmailConfirmationSent(false);
+                setMessage("");
+                setMode("login");
+              }}
+            >
+              Voltar para o login
+            </button>
+          </div>
+        ) : (
         <form onSubmit={submit}>
           {mode === "signup" && (
             <label>
@@ -593,11 +623,14 @@ export default function App() {
             {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
           </button>
         </form>
+        )}
 
         {message && <div className="status-message">{message}</div>}
-        <button className="link-button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>
-          {mode === "login" ? "Ainda não tenho conta" : "Já tenho uma conta"}
-        </button>
+        {!emailConfirmationSent && (
+          <button className="link-button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>
+            {mode === "login" ? "Ainda não tenho conta" : "Já tenho uma conta"}
+          </button>
+        )}
       </section>
     </main>
   );
