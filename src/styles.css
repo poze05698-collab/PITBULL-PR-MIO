@@ -18,7 +18,6 @@ body {
 }
 
 button, input { font: inherit; }
-
 button { cursor: pointer; }
 
 .app-shell {
@@ -44,30 +43,11 @@ button { cursor: pointer; }
   color: #ffc400;
 }
 
-h1 {
-  margin: 12px 0 8px;
-  font-size: clamp(32px, 7vw, 48px);
-  line-height: 1;
-}
+h1 { margin: 12px 0 8px; font-size: clamp(32px, 7vw, 48px); line-height: 1; }
+.muted, p { color: #a8a8b3; line-height: 1.6; }
 
-.muted, p {
-  color: #a8a8b3;
-  line-height: 1.6;
-}
-
-form {
-  display: grid;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  color: #dddde5;
-  font-size: 14px;
-  font-weight: 600;
-}
+form { display: grid; gap: 16px; margin-top: 24px; }
+label { display: grid; gap: 8px; color: #dddde5; font-size: 14px; font-weight: 600; }
 
 input {
   width: 100%;
@@ -78,7 +58,6 @@ input {
   background: #111117;
   outline: none;
 }
-
 input:focus { border-color: #ffc400; }
 
 .primary-button {
@@ -89,54 +68,94 @@ input:focus { border-color: #ffc400; }
   color: #111;
   background: #ffc400;
 }
+.primary-button:disabled { opacity: .6; cursor: not-allowed; }
 
-.primary-button:disabled {
-  opacity: .6;
-  cursor: wait;
-}
-
-.link-button {
-  width: 100%;
-  margin-top: 18px;
-  border: 0;
-  background: transparent;
-  color: #ffc400;
-}
-
-.status-message {
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 12px;
-  color: #dddde5;
-  background: rgba(255,255,255,.05);
-  font-size: 14px;
-}
+.link-button { width: 100%; margin-top: 18px; border: 0; background: transparent; color: #ffc400; }
+.status-message { margin-top: 16px; padding: 12px; border-radius: 12px; color: #dddde5; background: rgba(255,255,255,.05); font-size: 14px; }
 
 .home-shell { width: min(920px, 100%); min-height: 100vh; margin: 0 auto; padding: 24px 20px 110px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0 24px; }
 .topbar strong { display: block; margin-top: 8px; font-size: 20px; }
 .ghost-button, .secondary-button { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px 14px; color: #eee; background: #111117; font-weight: 700; }
+.secondary-button:disabled { opacity: .55; cursor: not-allowed; }
+
 .balance-card { padding: 26px; border-radius: 24px; background: linear-gradient(135deg, rgba(255,196,0,.18), rgba(20,20,27,.96)); border: 1px solid rgba(255,196,0,.18); }
 .balance-card span, .balance-card small, .stats-grid span { display: block; color: #aaaab5; }
 .balance-card strong { display: block; margin: 8px 0 0; font-size: clamp(42px, 10vw, 72px); line-height: 1; }
 .balance-card small { margin-bottom: 20px; }
+
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
 .stats-grid article, .section-card { padding: 20px; border: 1px solid rgba(255,255,255,.08); border-radius: 18px; background: rgba(20,20,27,.82); }
 .stats-grid strong { display: block; margin-top: 8px; font-size: 24px; }
+
 .section-card h2 { margin: 10px 0 6px; }
 .activity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
 .activity-card { display: grid; gap: 7px; text-align: left; padding: 18px; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; color: #eee; background: #111117; }
 .activity-card span { font-size: 28px; }
 .activity-card small { color: #888894; }
 .activity-card:disabled { opacity: .65; cursor: not-allowed; }
-.bottom-nav { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(700px, calc(100% - 24px)); display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: rgba(17,17,23,.96); backdrop-filter: blur(14px); }
+
+.activities-page { min-height: 460px; }
+.page-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.page-heading h1 { font-size: clamp(28px, 6vw, 42px); }
+
+.activity-list { display: grid; gap: 12px; }
+.activity-row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  background: #111117;
+}
+.activity-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,196,0,.09);
+  font-size: 23px;
+}
+.activity-info { min-width: 0; }
+.activity-type { color: #ffc400; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.activity-info h3 { margin: 4px 0; font-size: 17px; }
+.activity-info p { margin: 0 0 5px; font-size: 13px; }
+.activity-info small { color: #9999a5; }
+.activity-start { min-width: 100px; padding: 11px 14px; }
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 60px 20px;
+  color: #aaaab5;
+}
+.empty-state span { font-size: 42px; }
+.empty-state strong { margin-top: 12px; color: #eee; }
+.empty-state p { max-width: 520px; font-size: 14px; }
+
+.bottom-nav {
+  position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+  width: min(700px, calc(100% - 24px));
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  padding: 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px;
+  background: rgba(17,17,23,.96); backdrop-filter: blur(14px);
+}
 .bottom-nav button { display: grid; justify-items: center; gap: 3px; border: 0; border-radius: 12px; padding: 8px 4px; color: #858590; background: transparent; font-size: 17px; }
 .bottom-nav button span { font-size: 11px; }
 .bottom-nav button.active { color: #ffc400; background: rgba(255,196,0,.08); }
 .bottom-nav button:disabled { cursor: not-allowed; }
+
 @media (max-width: 650px) {
   .home-shell { padding-left: 14px; padding-right: 14px; }
   .stats-grid, .activity-grid { grid-template-columns: 1fr; }
   .stats-grid article { display: flex; justify-content: space-between; align-items: center; }
   .stats-grid strong { margin: 0; }
+  .page-heading { align-items: stretch; flex-direction: column; }
+  .activity-row { grid-template-columns: 42px 1fr; }
+  .activity-icon { width: 42px; height: 42px; }
+  .activity-start { grid-column: 1 / -1; width: 100%; }
 }
