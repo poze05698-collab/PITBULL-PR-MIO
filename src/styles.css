@@ -19,6 +19,8 @@ body {
 
 button, input { font: inherit; }
 
+button { cursor: pointer; }
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -26,12 +28,12 @@ button, input { font: inherit; }
   padding: 24px;
 }
 
-.welcome-card {
-  width: min(680px, 100%);
+.auth-card, .welcome-card {
+  width: min(460px, 100%);
   padding: 32px;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 24px;
-  background: rgba(20,20,27,.86);
+  background: rgba(20,20,27,.9);
   box-shadow: 0 24px 80px rgba(0,0,0,.35);
 }
 
@@ -43,13 +45,69 @@ button, input { font: inherit; }
 }
 
 h1 {
-  margin: 12px 0;
-  font-size: clamp(32px, 7vw, 56px);
+  margin: 12px 0 8px;
+  font-size: clamp(32px, 7vw, 48px);
   line-height: 1;
 }
 
-p {
-  margin: 0;
+.muted, p {
   color: #a8a8b3;
-  line-height: 1.65;
+  line-height: 1.6;
+}
+
+form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: #dddde5;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px;
+  padding: 13px 14px;
+  color: #fff;
+  background: #111117;
+  outline: none;
+}
+
+input:focus { border-color: #ffc400; }
+
+.primary-button {
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-weight: 800;
+  color: #111;
+  background: #ffc400;
+}
+
+.primary-button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.link-button {
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  background: transparent;
+  color: #ffc400;
+}
+
+.status-message {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  color: #dddde5;
+  background: rgba(255,255,255,.05);
+  font-size: 14px;
 }
