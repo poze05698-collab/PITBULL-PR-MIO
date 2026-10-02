@@ -3,9 +3,9 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 
 type Mode = "login" | "signup";
-type View = "home" | "activities" | "surveys";
+type View = "home" | "activities" | "surveys" | "wallet";
 type Profile = { display_name: string | null; username: string | null };
-type Wallet = { balance_points: number; pending_points: number; total_earned: number; total_withdrawn: number };
+type Wallet = { balance_points: number; pending_points: number; total_earned: number; total_withdrawn: number };\ntype WalletTransaction = { id: number; type: string; amount: number; balance_after: number; source: string | null; description: string | null; created_at: string };
 type Activity = {
   id: number;
   title: string;
@@ -31,11 +31,11 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [wallet, setWallet] = useState<Wallet | null>(null);\n  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [surveys, setSurveys] = useState<CpxSurvey[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingHome, setLoadingHome] = useState(false);
+  const [loadingHome, setLoadingHome] = useState(false);\n  const [loadingWallet, setLoadingWallet] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [loadingSurveys, setLoadingSurveys] = useState(false);
   const [startingActivity, setStartingActivity] = useState<string | null>(null);
@@ -83,6 +83,31 @@ export default function App() {
     } finally {
       setLoadingHome(false);
     }
+  }
+
+  async function loadWallet() {
+    if (!session) return;
+    setLoadingWallet(true);
+    setMessage("");
+    try {
+      const [{ data: walletData, error: walletError }, { data: transactionData, error: transactionError }] = await Promise.all([
+        supabase.from("wallets").select("balance_points,pending_points,total_earned,total_withdrawn").eq("user_id", session.user.id).single(),
+        supabase.from("point_transactions").select("id,type,amount,balance_after,source,description,created_at").eq("user_id", session.user.id).order("created_at", { ascending: false }).limit(30)
+      ]);
+      if (walletError) throw walletError;
+      if (transactionError) throw transactionError;
+      setWallet(walletData);
+      setTransactions(transactionData ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível carregar sua carteira.");
+    } finally {
+      setLoadingWallet(false);
+    }
+  }
+
+  async function openWallet() {
+    setView("wallet");
+    await loadWallet();
   }
 
   async function loadActivities() {
@@ -235,6 +260,42 @@ export default function App() {
               </div>
             </section>
           </>
+        ) : view === "wallet" ? (
+          <section className="section-card activities-page">
+            <div className="page-heading">
+              <div><span className="eyebrow">MINHA CARTEIRA</span><h1>Carteira</h1></div>
+              <button className="secondary-button" onClick={() => void loadWallet()} disabled={loadingWallet}>{loadingWallet ? "Atualizando..." : "Atualizar"}</button>
+            </div>
+            <section className="balance-card">
+              <span>Saldo disponível</span><strong>{wallet?.balance_points ?? 0}</strong><small>pontos</small>
+            </section>
+            <section className="stats-grid">
+              <article><span>Pontos pendentes</span><strong>{wallet?.pending_points ?? 0}</strong></article>
+              <article><span>Total ganho</span><strong>{wallet?.total_earned ?? 0}</strong></article>
+              <article><span>Total retirado</span><strong>{wallet?.total_withdrawn ?? 0}</strong></article>
+            </section>
+            <div className="withdrawal-placeholder">
+              <div><span>💸</span><strong>Saque via Pix</strong><p>O saque será liberado quando a regra econômica e o processamento de pagamentos estiverem configurados.</p></div>
+              <button className="secondary-button" disabled>Indisponível</button>
+            </div>
+            <div className="history-header"><div><span className="eyebrow">HISTÓRICO</span><h2>Movimentações</h2></div><span>{transactions.length}</span></div>
+            {transactions.length === 0 ? (
+              <div className="empty-state"><span>📋</span><strong>Nenhuma movimentação ainda</strong><p>Seus ganhos aparecerão aqui.</p></div>
+            ) : (
+              <div className="transaction-list">
+                {transactions.map((transaction) => {
+                  const positive = transaction.amount > 0;
+                  const date = new Date(transaction.created_at).toLocaleString("pt-BR");
+                  return <article className="transaction-row" key={transaction.id}>
+                    <div className="transaction-icon">{positive ? "⬆️" : "⬇️"}</div>
+                    <div className="transaction-info"><strong>{transaction.description || transaction.source || transaction.type}</strong><small>{date}</small></div>
+                    <div className={positive ? "transaction-positive" : "transaction-negative"}>{positive ? "+" : ""}{transaction.amount}<small> pts</small></div>
+                  </article>;
+                })}
+              </div>
+            )}
+            <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
+          </section>
         ) : view === "surveys" ? (
           <section className="section-card activities-page">
             <div className="page-heading">
@@ -343,7 +404,7 @@ export default function App() {
         <nav className="bottom-nav">
           <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>🏠<span>Início</span></button>
           <button className={view === "activities" || view === "surveys" ? "active" : ""} onClick={() => setView("activities")}>🎯<span>Atividades</span></button>
-          <button disabled>💰<span>Carteira</span></button>
+          <button className={view === "wallet" ? "active" : ""} onClick={() => void openWallet()}>💰<span>Carteira</span></button>
           <button disabled>👥<span>Indicações</span></button>
           <button disabled>👤<span>Perfil</span></button>
         </nav>
