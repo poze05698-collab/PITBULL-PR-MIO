@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 
 type Mode = "login" | "signup";
 
 export default function App() {
-  const [session, setSession] = useState(() => supabase.auth.getSession());
+  const [session, setSession] = useState<Session | null>(null);
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,11 +17,11 @@ export default function App() {
     let mounted = true;
 
     supabase.auth.getSession().then(({ data }) => {
-      if (mounted) setSession(Promise.resolve(data.session));
+      if (mounted) setSession(data.session);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(Promise.resolve(currentSession));
+      setSession(currentSession);
     });
 
     return () => {
@@ -28,8 +29,6 @@ export default function App() {
       listener.subscription.unsubscribe();
     };
   }, []);
-
-  const resolvedSession = session instanceof Promise ? null : session;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -62,7 +61,7 @@ export default function App() {
     await supabase.auth.signOut();
   }
 
-  if (resolvedSession) {
+  if (session) {
     return (
       <main className="app-shell">
         <section className="welcome-card">
