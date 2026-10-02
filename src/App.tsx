@@ -29,6 +29,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadingHome, setLoadingHome] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
+  const [startingActivity, setStartingActivity] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -84,7 +85,6 @@ export default function App() {
       ]);
       if (surveysError) throw surveysError;
       if (offersError) throw offersError;
-
       setActivities([
         ...(surveys ?? []).map((item) => ({ ...item, kind: "SURVEY" as const })),
         ...(offers ?? []).map((item) => ({ ...item, kind: "OFFER" as const }))
@@ -93,6 +93,45 @@ export default function App() {
       setMessage(error instanceof Error ? error.message : "Não foi possível carregar as atividades.");
     } finally {
       setLoadingActivities(false);
+    }
+  }
+
+  async function startActivity(activity: Activity) {
+    const key = `${activity.kind}-${activity.id}`;
+    setStartingActivity(key);
+    setMessage("");
+
+    try {
+      const { data, error } = await supabase.rpc("start_user_activity", {
+        p_activity_type: activity.kind,
+        p_activity_id: activity.id
+      });
+
+      if (error) throw error;
+
+      const started = Array.isArray(data) ? data[0] : data;
+
+      if (!started?.activity_id) {
+        throw new Error("Não foi possível iniciar a atividade.");
+      }
+
+      setMessage(`Atividade iniciada com sucesso. ID: ${started.activity_id}.`);
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "";
+
+      if (raw.includes("ACTIVITY_NOT_AVAILABLE")) {
+        setMessage("Essa atividade não está mais disponível.");
+        void loadActivities();
+      } else if (raw.includes("PROVIDER_NOT_AVAILABLE")) {
+        setMessage("O provedor dessa atividade está temporariamente indisponível.");
+        void loadActivities();
+      } else if (raw.includes("AUTH_REQUIRED")) {
+        setMessage("Sua sessão expirou. Entre novamente.");
+      } else {
+        setMessage("Não foi possível iniciar a atividade. Tente novamente.");
+      }
+    } finally {
+      setStartingActivity(null);
     }
   }
 
@@ -192,24 +231,34 @@ export default function App() {
             )}
 
             <div className="activity-list">
-              {activities.map((activity) => (
-                <article className="activity-row" key={`${activity.kind}-${activity.id}`}>
-                  <div className="activity-icon">{activity.kind === "SURVEY" ? "🔎" : "🎯"}</div>
-                  <div className="activity-info">
-                    <span className="activity-type">{activity.kind === "SURVEY" ? "Pesquisa" : "Tarefa"}</span>
-                    <h3>{activity.title}</h3>
-                    {activity.description && <p>{activity.description}</p>}
-                    <small>
-                      +{activity.reward_points} pontos
-                      {activity.estimated_minutes ? ` • ~${activity.estimated_minutes} min` : ""}
-                      {activity.category ? ` • ${activity.category}` : ""}
-                    </small>
-                  </div>
-                  <button className="primary-button activity-start" disabled title="Abertura segura será ativada na próxima etapa">
-                    Começar
-                  </button>
-                </article>
-              ))}
+              {activities.map((activity) => {
+                const key = `${activity.kind}-${activity.id}`;
+
+                return (
+                  <article className="activity-row" key={key}>
+                    <div className="activity-icon">{activity.kind === "SURVEY" ? "🔎" : "🎯"}</div>
+
+                    <div className="activity-info">
+                      <span className="activity-type">{activity.kind === "SURVEY" ? "Pesquisa" : "Tarefa"}</span>
+                      <h3>{activity.title}</h3>
+                      {activity.description && <p>{activity.description}</p>}
+                      <small>
+                        +{activity.reward_points} pontos
+                        {activity.estimated_minutes ? ` • ~${activity.estimated_minutes} min` : ""}
+                        {activity.category ? ` • ${activity.category}` : ""}
+                      </small>
+                    </div>
+
+                    <button
+                      className="primary-button activity-start"
+                      onClick={() => void startActivity(activity)}
+                      disabled={startingActivity !== null}
+                    >
+                      {startingActivity === key ? "Iniciando..." : "Começar"}
+                    </button>
+                  </article>
+                );
+              })}
             </div>
           </section>
         )}
@@ -232,14 +281,37 @@ export default function App() {
       <section className="auth-card">
         <span className="eyebrow">PITBULL PRÊMIO</span>
         <h1>{mode === "login" ? "Entrar" : "Criar conta"}</h1>
-        <p className="muted">{mode === "login" ? "Entre para acessar sua carteira e suas atividades." : "Crie sua conta para começar a usar o aplicativo."}</p>
+        <p className="muted">
+          {mode === "login"
+            ? "Entre para acessar sua carteira e suas atividades."
+            : "Crie sua conta para começar a usar o aplicativo."}
+        </p>
+
         <form onSubmit={submit}>
-          {mode === "signup" && <label>Nome<input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Seu nome" autoComplete="name" /></label>}
-          <label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email" required /></label>
-          <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo de 6 caracteres" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={6} required /></label>
-          <button className="primary-button" disabled={loading}>{loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}</button>
+          {mode === "signup" && (
+            <label>
+              Nome
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Seu nome" autoComplete="name" />
+            </label>
+          )}
+
+          <label>
+            E-mail
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email" required />
+          </label>
+
+          <label>
+            Senha
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo de 6 caracteres" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={6} required />
+          </label>
+
+          <button className="primary-button" disabled={loading}>
+            {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
+          </button>
         </form>
+
         {message && <div className="status-message">{message}</div>}
+
         <button className="link-button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>
           {mode === "login" ? "Ainda não tenho conta" : "Já tenho uma conta"}
         </button>
