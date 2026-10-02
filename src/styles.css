@@ -159,3 +159,10 @@ input:focus { border-color: #ffc400; }
   .activity-icon { width: 42px; height: 42px; }
   .activity-start { grid-column: 1 / -1; width: 100%; }
 }
+
+.profile-form { display: grid; gap: 16px; max-width: 620px; }
+.profile-readonly { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: #111117; }
+.profile-readonly span { color: #9999a5; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.profile-readonly strong { color: #eee; word-break: break-word; }
+.referral-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; }
+@media (max-width: 650px) { .referral-form { grid-template-columns: 1fr; } }
