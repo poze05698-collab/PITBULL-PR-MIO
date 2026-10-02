@@ -3,7 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 
 type Mode = "login" | "signup";
-type View = "home" | "activities";
+type View = "home" | "activities" | "surveys";
 type Profile = { display_name: string | null; username: string | null };
 type Wallet = { balance_points: number; pending_points: number; total_earned: number; total_withdrawn: number };
 type Activity = {
@@ -14,6 +14,13 @@ type Activity = {
   kind: "SURVEY" | "OFFER";
   estimated_minutes?: number | null;
   category?: string | null;
+};
+type CpxSurvey = {
+  external_id: string;
+  title: string;
+  reward: number;
+  estimated_minutes: number | null;
+  url: string | null;
 };
 
 export default function App() {
@@ -26,9 +33,11 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [surveys, setSurveys] = useState<CpxSurvey[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingHome, setLoadingHome] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
+  const [loadingSurveys, setLoadingSurveys] = useState(false);
   const [startingActivity, setStartingActivity] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
@@ -52,6 +61,7 @@ export default function App() {
       setProfile(null);
       setWallet(null);
       setActivities([]);
+      setSurveys([]);
       setView("home");
     }
   }, [session]);
@@ -79,14 +89,14 @@ export default function App() {
     setLoadingActivities(true);
     setMessage("");
     try {
-      const [{ data: surveys, error: surveysError }, { data: offers, error: offersError }] = await Promise.all([
+      const [{ data: surveysData, error: surveysError }, { data: offers, error: offersError }] = await Promise.all([
         supabase.from("surveys").select("id,title,description,reward_points,estimated_minutes").order("reward_points", { ascending: false }),
         supabase.from("offers").select("id,title,description,reward_points,category").order("reward_points", { ascending: false })
       ]);
       if (surveysError) throw surveysError;
       if (offersError) throw offersError;
       setActivities([
-        ...(surveys ?? []).map((item) => ({ ...item, kind: "SURVEY" as const })),
+        ...(surveysData ?? []).map((item) => ({ ...item, kind: "SURVEY" as const })),
         ...(offers ?? []).map((item) => ({ ...item, kind: "OFFER" as const }))
       ]);
     } catch (error) {
@@ -94,6 +104,28 @@ export default function App() {
     } finally {
       setLoadingActivities(false);
     }
+  }
+
+  async function loadCpxSurveys() {
+    setLoadingSurveys(true);
+    setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("cpx-surveys", { body: {} });
+      if (error) throw error;
+      const list = Array.isArray(data?.surveys) ? data.surveys : [];
+      setSurveys(list);
+      if (list.length === 0) setMessage("Nenhuma pesquisa CPX disponível para seu perfil agora.");
+    } catch (error) {
+      setSurveys([]);
+      setMessage(error instanceof Error ? error.message : "Não foi possível carregar as pesquisas.");
+    } finally {
+      setLoadingSurveys(false);
+    }
+  }
+
+  async function openSurveys() {
+    setView("surveys");
+    await loadCpxSurveys();
   }
 
   async function startActivity(activity: Activity) {
@@ -106,19 +138,12 @@ export default function App() {
         p_activity_type: activity.kind,
         p_activity_id: activity.id
       });
-
       if (error) throw error;
-
       const started = Array.isArray(data) ? data[0] : data;
-
-      if (!started?.activity_id) {
-        throw new Error("Não foi possível iniciar a atividade.");
-      }
-
+      if (!started?.activity_id) throw new Error("Não foi possível iniciar a atividade.");
       setMessage(`Atividade iniciada com sucesso. ID: ${started.activity_id}.`);
     } catch (error) {
       const raw = error instanceof Error ? error.message : "";
-
       if (raw.includes("ACTIVITY_NOT_AVAILABLE")) {
         setMessage("Essa atividade não está mais disponível.");
         void loadActivities();
@@ -198,8 +223,8 @@ export default function App() {
               <h2>Atividades</h2>
               <p>Escolha uma atividade disponível para acumular pontos.</p>
               <div className="activity-grid">
-                <button className="activity-card" onClick={() => setView("activities")}>
-                  <span>🔎</span><strong>Pesquisas</strong><small>Ver disponíveis</small>
+                <button className="activity-card" onClick={() => void openSurveys()}>
+                  <span>🔎</span><strong>Pesquisas</strong><small>Ver pesquisas CPX</small>
                 </button>
                 <button className="activity-card" onClick={() => setView("activities")}>
                   <span>🎯</span><strong>Tarefas</strong><small>Ver disponíveis</small>
@@ -210,6 +235,59 @@ export default function App() {
               </div>
             </section>
           </>
+        ) : view === "surveys" ? (
+          <section className="section-card activities-page">
+            <div className="page-heading">
+              <div>
+                <span className="eyebrow">PESQUISAS REMUNERADAS</span>
+                <h1>Pesquisas disponíveis</h1>
+              </div>
+              <button className="secondary-button" onClick={() => void loadCpxSurveys()} disabled={loadingSurveys}>
+                {loadingSurveys ? "Buscando..." : "Atualizar"}
+              </button>
+            </div>
+
+            {loadingSurveys && (
+              <div className="empty-state">
+                <span>🔎</span>
+                <strong>Buscando pesquisas para seu perfil...</strong>
+                <p>Estamos consultando o provedor.</p>
+              </div>
+            )}
+
+            {!loadingSurveys && surveys.length === 0 && (
+              <div className="empty-state">
+                <span>📝</span>
+                <strong>Nenhuma pesquisa disponível agora</strong>
+                <p>Tente atualizar novamente mais tarde.</p>
+              </div>
+            )}
+
+            <div className="activity-list">
+              {surveys.map((survey) => (
+                <article className="activity-row" key={survey.external_id}>
+                  <div className="activity-icon">🔎</div>
+                  <div className="activity-info">
+                    <span className="activity-type">CPX Research</span>
+                    <h3>{survey.title}</h3>
+                    <small>
+                      Recompensa estimada: {survey.reward}
+                      {survey.estimated_minutes ? ` • ~${survey.estimated_minutes} min` : ""}
+                    </small>
+                  </div>
+                  <button
+                    className="primary-button activity-start"
+                    disabled={!survey.url}
+                    onClick={() => survey.url && window.open(survey.url, "_blank", "noopener,noreferrer")}
+                  >
+                    Responder
+                  </button>
+                </article>
+              ))}
+            </div>
+
+            <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
+          </section>
         ) : (
           <section className="section-card activities-page">
             <div className="page-heading">
@@ -233,11 +311,9 @@ export default function App() {
             <div className="activity-list">
               {activities.map((activity) => {
                 const key = `${activity.kind}-${activity.id}`;
-
                 return (
                   <article className="activity-row" key={key}>
                     <div className="activity-icon">{activity.kind === "SURVEY" ? "🔎" : "🎯"}</div>
-
                     <div className="activity-info">
                       <span className="activity-type">{activity.kind === "SURVEY" ? "Pesquisa" : "Tarefa"}</span>
                       <h3>{activity.title}</h3>
@@ -248,7 +324,6 @@ export default function App() {
                         {activity.category ? ` • ${activity.category}` : ""}
                       </small>
                     </div>
-
                     <button
                       className="primary-button activity-start"
                       onClick={() => void startActivity(activity)}
@@ -267,7 +342,7 @@ export default function App() {
 
         <nav className="bottom-nav">
           <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>🏠<span>Início</span></button>
-          <button className={view === "activities" ? "active" : ""} onClick={() => setView("activities")}>🎯<span>Atividades</span></button>
+          <button className={view === "activities" || view === "surveys" ? "active" : ""} onClick={() => setView("activities")}>🎯<span>Atividades</span></button>
           <button disabled>💰<span>Carteira</span></button>
           <button disabled>👥<span>Indicações</span></button>
           <button disabled>👤<span>Perfil</span></button>
@@ -294,24 +369,20 @@ export default function App() {
               <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Seu nome" autoComplete="name" />
             </label>
           )}
-
           <label>
             E-mail
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email" required />
           </label>
-
           <label>
             Senha
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo de 6 caracteres" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={6} required />
           </label>
-
           <button className="primary-button" disabled={loading}>
             {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
           </button>
         </form>
 
         {message && <div className="status-message">{message}</div>}
-
         <button className="link-button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>
           {mode === "login" ? "Ainda não tenho conta" : "Já tenho uma conta"}
         </button>
