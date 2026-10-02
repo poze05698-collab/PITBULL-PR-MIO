@@ -3,9 +3,11 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 
 type Mode = "login" | "signup";
-type View = "home" | "activities" | "surveys" | "wallet" | "referrals";
-type Profile = { display_name: string | null; username: string | null; referral_code: string | null };\ntype Referral = { id: number; referred_user_id: string; status: string; reward_points: number; created_at: string };
-type Wallet = { balance_points: number; pending_points: number; total_earned: number; total_withdrawn: number };\ntype WalletTransaction = { id: number; type: string; amount: number; balance_after: number; source: string | null; description: string | null; created_at: string };
+type View = "home" | "activities" | "surveys" | "wallet" | "referrals" | "profile";
+type Profile = { display_name: string | null; username: string | null; avatar_url?: string | null; referral_code: string | null };
+type Referral = { id: number; referred_user_id: string; status: string; reward_points: number; created_at: string };
+type Wallet = { balance_points: number; pending_points: number; total_earned: number; total_withdrawn: number };
+type WalletTransaction = { id: number; type: string; amount: number; balance_after: number; source: string | null; description: string | null; created_at: string };
 type Activity = {
   id: number;
   title: string;
@@ -31,11 +33,17 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>(null);\n  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);\n  const [referrals, setReferrals] = useState<Referral[]>([]);\n  const [referralCodeInput, setReferralCodeInput] = useState("");\n  const [loadingReferrals, setLoadingReferrals] = useState(false);\n  const [applyingReferral, setApplyingReferral] = useState(false);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [referralCodeInput, setReferralCodeInput] = useState("");
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
+  const [applyingReferral, setApplyingReferral] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [surveys, setSurveys] = useState<CpxSurvey[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingHome, setLoadingHome] = useState(false);\n  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [loadingHome, setLoadingHome] = useState(false);
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [loadingSurveys, setLoadingSurveys] = useState(false);
   const [startingActivity, setStartingActivity] = useState<string | null>(null);
@@ -59,6 +67,7 @@ export default function App() {
       void loadActivities();
     } else {
       setProfile(null);
+      setDisplayName("");
       setWallet(null);
       setActivities([]);
       setSurveys([]);
@@ -71,17 +80,114 @@ export default function App() {
     setMessage("");
     try {
       const [{ data: profileData, error: profileError }, { data: walletData, error: walletError }] = await Promise.all([
-        supabase.from("profiles").select("display_name,username,referral_code").eq("id", userId).single(),
+        supabase.from("profiles").select("display_name,username,avatar_url,referral_code").eq("id", userId).single(),
         supabase.from("wallets").select("balance_points,pending_points,total_earned,total_withdrawn").eq("user_id", userId).single()
       ]);
       if (profileError) throw profileError;
       if (walletError) throw walletError;
       setProfile(profileData);
+      setDisplayName(profileData.display_name || "");
       setWallet(walletData);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível carregar sua conta.");
     } finally {
       setLoadingHome(false);
+    }
+  }
+
+  async function loadProfile() {
+    if (!session) return;
+    setMessage("");
+    try {
+      const { data, error } = await supabase.from("profiles").select("display_name,username,avatar_url,referral_code").eq("id", session.user.id).single();
+      if (error) throw error;
+      setProfile(data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível carregar seu perfil.");
+    }
+  }
+
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    if (!session) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const cleanName = displayName.trim();
+      const cleanUsername = profile?.username?.trim() || "";
+      const { data, error } = await supabase.from("profiles").update({
+        display_name: cleanName || null,
+        username: cleanUsername || null
+      }).eq("id", session.user.id).select("display_name,username,avatar_url,referral_code").single();
+      if (error) throw error;
+      setProfile(data);
+      setDisplayName(data.display_name || "");
+      setMessage("Perfil atualizado com sucesso.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível salvar seu perfil.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openProfile() {
+    if (!profile) await loadProfile();
+    setDisplayName(profile?.display_name || "");
+    setView("profile");
+  }
+
+  async function loadReferrals() {
+    if (!session) return;
+    setLoadingReferrals(true);
+    setMessage("");
+    try {
+      const { data, error } = await supabase.from("referrals").select("id,referred_user_id,status,reward_points,created_at").eq("referrer_user_id", session.user.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      setReferrals(data ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível carregar suas indicações.");
+    } finally {
+      setLoadingReferrals(false);
+    }
+  }
+
+  async function openReferrals() {
+    setView("referrals");
+    await loadReferrals();
+  }
+
+  async function copyReferralLink() {
+    if (!profile?.referral_code) return;
+    try {
+      await navigator.clipboard.writeText(window.location.origin + "/?ref=" + profile.referral_code);
+      setMessage("Link de indicação copiado.");
+    } catch {
+      setMessage("Não foi possível copiar automaticamente. Compartilhe seu código: " + profile.referral_code);
+    }
+  }
+
+  async function applyReferral() {
+    const code = referralCodeInput.trim();
+    if (!code) {
+      setMessage("Digite um código de indicação.");
+      return;
+    }
+    setApplyingReferral(true);
+    setMessage("");
+    try {
+      const { error } = await supabase.rpc("apply_referral_code", { p_referral_code: code });
+      if (error) throw error;
+      setReferralCodeInput("");
+      setMessage("Indicação registrada. A recompensa será liberada após a qualificação.");
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "";
+      if (raw.includes("REFERRAL_CODE_INVALID")) setMessage("Código de indicação inválido.");
+      else if (raw.includes("REFERRAL_SELF_NOT_ALLOWED")) setMessage("Você não pode usar seu próprio código.");
+      else if (raw.includes("REFERRAL_ALREADY_USED")) setMessage("Você já utilizou um código de indicação.");
+      else if (raw.includes("ECONOMY_NOT_CONFIGURED")) setMessage("O programa de recompensas ainda está sendo configurado.");
+      else setMessage("Não foi possível registrar a indicação.");
+    } finally {
+      setApplyingReferral(false);
     }
   }
 
@@ -306,6 +412,41 @@ export default function App() {
             {referrals.length === 0 ? <div className="empty-state"><span>👥</span><strong>Nenhuma indicação ainda</strong><p>Compartilhe seu código para começar.</p></div> : <div className="transaction-list">{referrals.map((r) => <article className="transaction-row" key={r.id}><div className="transaction-icon">👤</div><div className="transaction-info"><strong>{r.status === "REWARDED" ? "Recompensa liberada" : r.status === "QUALIFIED" ? "Qualificado" : "Aguardando qualificação"}</strong><small>{new Date(r.created_at).toLocaleString("pt-BR")}</small></div><div className="transaction-positive">+{r.reward_points}<small> pts</small></div></article>)}</div>}
             <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
           </section>
+        ) : view === "profile" ? (
+          <section className="section-card activities-page">
+            <div className="page-heading">
+              <div><span className="eyebrow">MINHA CONTA</span><h1>Perfil</h1></div>
+            </div>
+            <form onSubmit={saveProfile} className="profile-form">
+              <label>
+                Nome
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Seu nome" autoComplete="name" />
+              </label>
+              <label>
+                Usuário
+                <input
+                  value={profile?.username || ""}
+                  onChange={(e) => setProfile((current) => current ? { ...current, username: e.target.value } : current)}
+                  placeholder="Seu usuário"
+                  autoComplete="username"
+                />
+              </label>
+              <label>
+                E-mail
+                <input value={session.user.email || ""} readOnly />
+              </label>
+              <div className="profile-readonly">
+                <span>Código de indicação</span>
+                <strong>{profile?.referral_code || "—"}</strong>
+              </div>
+              <div className="profile-readonly">
+                <span>Status da conta</span>
+                <strong>Ativa</strong>
+              </div>
+              <button className="primary-button" disabled={loading}>{loading ? "Salvando..." : "Salvar alterações"}</button>
+            </form>
+            <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
+          </section>
         ) : view === "surveys" ? (
           <section className="section-card activities-page">
             <div className="page-heading">
@@ -416,7 +557,7 @@ export default function App() {
           <button className={view === "activities" || view === "surveys" ? "active" : ""} onClick={() => setView("activities")}>🎯<span>Atividades</span></button>
           <button className={view === "wallet" ? "active" : ""} onClick={() => void openWallet()}>💰<span>Carteira</span></button>
           <button className={view === "referrals" ? "active" : ""} onClick={() => void openReferrals()}>👥<span>Indicações</span></button>
-          <button disabled>👤<span>Perfil</span></button>
+          <button className={view === "profile" ? "active" : ""} onClick={() => void openProfile()}>👤<span>Perfil</span></button>
         </nav>
       </main>
     );
