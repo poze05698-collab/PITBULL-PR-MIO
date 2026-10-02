@@ -3,8 +3,8 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 
 type Mode = "login" | "signup";
-type View = "home" | "activities" | "surveys" | "wallet";
-type Profile = { display_name: string | null; username: string | null };
+type View = "home" | "activities" | "surveys" | "wallet" | "referrals";
+type Profile = { display_name: string | null; username: string | null; referral_code: string | null };\ntype Referral = { id: number; referred_user_id: string; status: string; reward_points: number; created_at: string };
 type Wallet = { balance_points: number; pending_points: number; total_earned: number; total_withdrawn: number };\ntype WalletTransaction = { id: number; type: string; amount: number; balance_after: number; source: string | null; description: string | null; created_at: string };
 type Activity = {
   id: number;
@@ -31,7 +31,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>(null);\n  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [wallet, setWallet] = useState<Wallet | null>(null);\n  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);\n  const [referrals, setReferrals] = useState<Referral[]>([]);\n  const [referralCodeInput, setReferralCodeInput] = useState("");\n  const [loadingReferrals, setLoadingReferrals] = useState(false);\n  const [applyingReferral, setApplyingReferral] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [surveys, setSurveys] = useState<CpxSurvey[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,7 +71,7 @@ export default function App() {
     setMessage("");
     try {
       const [{ data: profileData, error: profileError }, { data: walletData, error: walletError }] = await Promise.all([
-        supabase.from("profiles").select("display_name,username").eq("id", userId).single(),
+        supabase.from("profiles").select("display_name,username,referral_code").eq("id", userId).single(),
         supabase.from("wallets").select("balance_points,pending_points,total_earned,total_withdrawn").eq("user_id", userId).single()
       ]);
       if (profileError) throw profileError;
@@ -296,6 +296,16 @@ export default function App() {
             )}
             <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
           </section>
+        ) : view === "referrals" ? (
+          <section className="section-card activities-page">
+            <div className="page-heading"><div><span className="eyebrow">PROGRAMA DE INDICAÇÃO</span><h1>Indique amigos</h1></div><button className="secondary-button" onClick={() => void loadReferrals()} disabled={loadingReferrals}>{loadingReferrals ? "Atualizando..." : "Atualizar"}</button></div>
+            <div className="balance-card"><span>Seu código</span><strong>{profile?.referral_code || "—"}</strong><small>Compartilhe com seus amigos</small><button className="secondary-button" onClick={() => void copyReferralLink()} disabled={!profile?.referral_code}>Copiar link de indicação</button></div>
+            <section className="stats-grid"><article><span>Total indicados</span><strong>{referrals.length}</strong></article><article><span>Qualificados</span><strong>{referrals.filter((r) => r.status === "QUALIFIED" || r.status === "REWARDED").length}</strong></article><article><span>Pontos liberados</span><strong>{referrals.filter((r) => r.status === "REWARDED").reduce((sum, r) => sum + r.reward_points, 0)}</strong></article></section>
+            <div className="withdrawal-placeholder"><div><span>🎁</span><strong>Tem um código de amigo?</strong><p>Digite o código recebido para registrar sua indicação.</p></div><div className="referral-form"><input value={referralCodeInput} onChange={(e) => setReferralCodeInput(e.target.value.toUpperCase())} placeholder="EXEMPLO12" maxLength={20}/><button className="primary-button" onClick={() => void applyReferral()} disabled={applyingReferral}>{applyingReferral ? "Registrando..." : "Usar código"}</button></div></div>
+            <div className="history-header"><div><span className="eyebrow">HISTÓRICO</span><h2>Minhas indicações</h2></div><span>{referrals.length}</span></div>
+            {referrals.length === 0 ? <div className="empty-state"><span>👥</span><strong>Nenhuma indicação ainda</strong><p>Compartilhe seu código para começar.</p></div> : <div className="transaction-list">{referrals.map((r) => <article className="transaction-row" key={r.id}><div className="transaction-icon">👤</div><div className="transaction-info"><strong>{r.status === "REWARDED" ? "Recompensa liberada" : r.status === "QUALIFIED" ? "Qualificado" : "Aguardando qualificação"}</strong><small>{new Date(r.created_at).toLocaleString("pt-BR")}</small></div><div className="transaction-positive">+{r.reward_points}<small> pts</small></div></article>)}</div>}
+            <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
+          </section>
         ) : view === "surveys" ? (
           <section className="section-card activities-page">
             <div className="page-heading">
@@ -405,7 +415,7 @@ export default function App() {
           <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>🏠<span>Início</span></button>
           <button className={view === "activities" || view === "surveys" ? "active" : ""} onClick={() => setView("activities")}>🎯<span>Atividades</span></button>
           <button className={view === "wallet" ? "active" : ""} onClick={() => void openWallet()}>💰<span>Carteira</span></button>
-          <button disabled>👥<span>Indicações</span></button>
+          <button className={view === "referrals" ? "active" : ""} onClick={() => void openReferrals()}>👥<span>Indicações</span></button>
           <button disabled>👤<span>Perfil</span></button>
         </nav>
       </main>
