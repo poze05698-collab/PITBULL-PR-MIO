@@ -112,6 +112,9 @@ Deno.serve(async (req) => {
         external_id: String(survey.id),
         title: "Pesquisa CPX • " + String(survey.loi ?? "?") + " min",
         reward: Number(survey.payout ?? 0),
+        payout_publisher_usd: survey.payout_publisher_usd == null ? null : Number(survey.payout_publisher_usd),
+        conversion_rate: survey.conversion_rate ?? null,
+        survey_type: survey.type ?? null,
         estimated_minutes: Number(survey.loi ?? 0) || null,
         url:
           typeof survey.href_new === "string"
