@@ -23,6 +23,10 @@ type CpxSurvey = {
   reward: number;
   estimated_minutes: number | null;
   url: string | null;
+  payout_publisher_usd?: number | null;
+  conversion_rate?: string | number | null;
+  payout_type?: string | null;
+  survey_type?: string | null;
 };
 
 export default function App() {
@@ -493,7 +497,7 @@ export default function App() {
                     <span className="activity-type">CPX Research</span>
                     <h3>{survey.title}</h3>
                     <small>
-                      Recompensa estimada: {survey.reward}
+                      Recompensa CPX: {survey.reward}
                       {survey.estimated_minutes ? ` • ~${survey.estimated_minutes} min` : ""}
                     </small>
                   </div>
