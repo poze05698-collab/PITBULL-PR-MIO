@@ -500,6 +500,13 @@ export default function App() {
                       Recompensa CPX: {survey.reward}
                       {survey.estimated_minutes ? ` • ~${survey.estimated_minutes} min` : ""}
                     </small>
+                    {survey.payout_publisher_usd !== undefined && (
+                      <small>
+                        DEBUG: publisher {survey.payout_publisher_usd ?? "—"} USD
+                        {" • "}conversão {survey.conversion_rate ?? "—"}
+                        {" • "}tipo {survey.survey_type ?? "—"}
+                      </small>
+                    )}
                   </div>
                   <button
                     className="primary-button activity-start"
