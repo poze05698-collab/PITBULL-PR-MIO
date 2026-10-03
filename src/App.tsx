@@ -29,6 +29,12 @@ type CpxSurvey = {
   survey_type?: string | null;
 };
 
+type AyetSurveyWall = {
+  adslot_id: string;
+  external_identifier: string;
+  survey_url: string;
+};
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [mode, setMode] = useState<Mode>("login");
@@ -45,6 +51,8 @@ export default function App() {
   const [applyingReferral, setApplyingReferral] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [surveys, setSurveys] = useState<CpxSurvey[]>([]);
+  const [ayetSurveyUrl, setAyetSurveyUrl] = useState<string | null>(null);
+  const [loadingAyetSurvey, setLoadingAyetSurvey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingHome, setLoadingHome] = useState(false);
   const [loadingWallet, setLoadingWallet] = useState(false);
@@ -76,6 +84,7 @@ export default function App() {
       setWallet(null);
       setActivities([]);
       setSurveys([]);
+      setAyetSurveyUrl(null);
       setView("home");
     }
   }, [session]);
@@ -261,7 +270,30 @@ export default function App() {
 
   async function openSurveys() {
     setView("surveys");
-    await loadCpxSurveys();
+    setLoadingAyetSurvey(true);
+    setMessage("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("ayet-survey-url", { body: {} });
+      if (error) throw error;
+
+      const result = data as AyetSurveyWall | null;
+      if (!result?.survey_url) {
+        throw new Error("SURVEY_URL_NOT_AVAILABLE");
+      }
+
+      setAyetSurveyUrl(result.survey_url);
+    } catch (error) {
+      setAyetSurveyUrl(null);
+      const raw = error instanceof Error ? error.message : "";
+      if (raw.includes("401") || raw.includes("Unauthorized")) {
+        setMessage("Sua sessão expirou. Entre novamente.");
+      } else {
+        setMessage("As pesquisas estão em preparação. Tente novamente em instantes.");
+      }
+    } finally {
+      setLoadingAyetSurvey(false);
+    }
   }
 
   async function startActivity(activity: Activity) {
@@ -369,7 +401,7 @@ export default function App() {
               <p>Escolha uma atividade disponível para acumular pontos.</p>
               <div className="activity-grid">
                 <button className="activity-card" onClick={() => void openSurveys()}>
-                  <span>🔎</span><strong>Pesquisas</strong><small>Ver pesquisas CPX</small>
+                  <span>🔎</span><strong>Pesquisas</strong><small>Pesquisas remuneradas</small>
                 </button>
                 <button className="activity-card" onClick={() => setView("activities")}>
                   <span>🎯</span><strong>Tarefas</strong><small>Ver disponíveis</small>
@@ -468,56 +500,40 @@ export default function App() {
                 <span className="eyebrow">PESQUISAS REMUNERADAS</span>
                 <h1>Pesquisas disponíveis</h1>
               </div>
-              <button className="secondary-button" onClick={() => void loadCpxSurveys()} disabled={loadingSurveys}>
-                {loadingSurveys ? "Buscando..." : "Atualizar"}
+              <button className="secondary-button" onClick={() => void openSurveys()} disabled={loadingAyetSurvey}>
+                {loadingAyetSurvey ? "Carregando..." : "Atualizar"}
               </button>
             </div>
 
-            {loadingSurveys && (
+            {loadingAyetSurvey ? (
               <div className="empty-state">
                 <span>🔎</span>
-                <strong>Buscando pesquisas para seu perfil...</strong>
-                <p>Estamos consultando o provedor.</p>
+                <strong>Preparando suas pesquisas...</strong>
+                <p>Estamos conectando seu perfil ao painel de pesquisas.</p>
               </div>
-            )}
-
-            {!loadingSurveys && surveys.length === 0 && (
+            ) : ayetSurveyUrl ? (
+              <article className="activity-row">
+                <div className="activity-icon">🔎</div>
+                <div className="activity-info">
+                  <span className="activity-type">ayeT Studios</span>
+                  <h3>Pesquisas remuneradas</h3>
+                  <p>Veja as pesquisas disponíveis para o seu perfil e responda diretamente pelo painel seguro do provedor.</p>
+                  <small>Se você concluir uma pesquisa elegível, a conversão será enviada pelo callback do provedor.</small>
+                </div>
+                <button
+                  className="primary-button activity-start"
+                  onClick={() => window.open(ayetSurveyUrl, "_blank", "noopener,noreferrer")}
+                >
+                  Abrir pesquisas
+                </button>
+              </article>
+            ) : (
               <div className="empty-state">
                 <span>📝</span>
-                <strong>Nenhuma pesquisa disponível agora</strong>
-                <p>Tente atualizar novamente mais tarde.</p>
+                <strong>Pesquisas em preparação</strong>
+                <p>O provedor ainda está finalizando a liberação do painel. Tente novamente mais tarde.</p>
               </div>
             )}
-
-            <div className="activity-list">
-              {surveys.map((survey) => (
-                <article className="activity-row" key={survey.external_id}>
-                  <div className="activity-icon">🔎</div>
-                  <div className="activity-info">
-                    <span className="activity-type">CPX Research</span>
-                    <h3>{survey.title}</h3>
-                    <small>
-                      Recompensa CPX: {survey.reward}
-                      {survey.estimated_minutes ? ` • ~${survey.estimated_minutes} min` : ""}
-                    </small>
-                    {survey.payout_publisher_usd !== undefined && (
-                      <small>
-                        DEBUG: publisher {survey.payout_publisher_usd ?? "—"} USD
-                        {" • "}conversão {survey.conversion_rate ?? "—"}
-                        {" • "}tipo {survey.survey_type ?? "—"}
-                      </small>
-                    )}
-                  </div>
-                  <button
-                    className="primary-button activity-start"
-                    disabled={!survey.url}
-                    onClick={() => survey.url && window.open(survey.url, "_blank", "noopener,noreferrer")}
-                  >
-                    Responder
-                  </button>
-                </article>
-              ))}
-            </div>
 
             <button className="link-button" onClick={() => setView("home")}>← Voltar</button>
           </section>
